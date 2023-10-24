@@ -286,26 +286,20 @@ func (sv *XTCPVisitor) makeNatHole() {
 
 	var filteredAddrs []string
 	for _, addr := range prepareResult.AssistedAddrs {
-
-		// 对每个地址检查是否匹配任意一个CIDR
 		matched := false
 		for _, cidr := range sv.cfg.TunnelIpsFilters {
-
 			_, cidrNet, _ := net.ParseCIDR(cidr)
 			addrParts := strings.Split(addr, ":")
 			addrIP := net.ParseIP(addrParts[0])
-
 			if addrIP.Mask(cidrNet.Mask).Equal(cidrNet.IP) {
 				matched = true
 				xl.Info("assistedAddresses: %v hit the filterIp: %v", addr, cidr)
 				break
 			}
-
 		}
 		if !matched {
 			filteredAddrs = append(filteredAddrs, addr)
 		}
-
 	}
 
 	prepareResult.AssistedAddrs = filteredAddrs
