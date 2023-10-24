@@ -140,12 +140,13 @@ var _ VisitorConfigurer = &XTCPVisitorConfig{}
 type XTCPVisitorConfig struct {
 	VisitorBaseConfig
 
-	Protocol          string `json:"protocol,omitempty"`
-	KeepTunnelOpen    bool   `json:"keepTunnelOpen,omitempty"`
-	MaxRetriesAnHour  int    `json:"maxRetriesAnHour,omitempty"`
-	MinRetryInterval  int    `json:"minRetryInterval,omitempty"`
-	FallbackTo        string `json:"fallbackTo,omitempty"`
-	FallbackTimeoutMs int    `json:"fallbackTimeoutMs,omitempty"`
+	Protocol          string   `json:"protocol,omitempty"`
+	KeepTunnelOpen    bool     `json:"keepTunnelOpen,omitempty"`
+	MaxRetriesAnHour  int      `json:"maxRetriesAnHour,omitempty"`
+	MinRetryInterval  int      `json:"minRetryInterval,omitempty"`
+	FallbackTo        string   `json:"fallbackTo,omitempty"`
+	FallbackTimeoutMs int      `json:"fallbackTimeoutMs,omitempty"`
+	TunnelIpsFilters  []string `json:"tunnelIpsFilters,omitempty"`
 }
 
 func (c *XTCPVisitorConfig) Complete(g *ClientCommonConfig) {

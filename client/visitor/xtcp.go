@@ -21,6 +21,7 @@ import (
 	"io"
 	"net"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -282,6 +283,34 @@ func (sv *XTCPVisitor) makeNatHole() {
 	}
 	xl.Info("nathole prepare success, nat type: %s, behavior: %s, addresses: %v, assistedAddresses: %v",
 		prepareResult.NatType, prepareResult.Behavior, prepareResult.Addrs, prepareResult.AssistedAddrs)
+
+	var filteredAddrs []string
+	for _, addr := range prepareResult.AssistedAddrs {
+
+		// 对每个地址检查是否匹配任意一个CIDR
+		matched := false
+		for _, cidr := range sv.cfg.TunnelIpsFilters {
+
+			_, cidrNet, _ := net.ParseCIDR(cidr)
+			addrParts := strings.Split(addr, ":")
+			addrIP := net.ParseIP(addrParts[0])
+
+			if addrIP.Mask(cidrNet.Mask).Equal(cidrNet.IP) {
+				matched = true
+				xl.Info("assistedAddresses: %v hit the filterIp: %v", addr, cidr)
+				break
+			}
+
+		}
+		if !matched {
+			filteredAddrs = append(filteredAddrs, addr)
+		}
+
+	}
+
+	prepareResult.AssistedAddrs = filteredAddrs
+
+	xl.Info("nathole filtered , assistedAddresses: %v", prepareResult.AssistedAddrs)
 
 	listenConn := prepareResult.ListenConn
 
