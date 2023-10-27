@@ -396,8 +396,9 @@ var _ ProxyConfigurer = &XTCPProxyConfig{}
 type XTCPProxyConfig struct {
 	ProxyBaseConfig
 
-	Secretkey  string   `json:"secretKey,omitempty"`
-	AllowUsers []string `json:"allowUsers,omitempty"`
+	Secretkey        string   `json:"secretKey,omitempty"`
+	AllowUsers       []string `json:"allowUsers,omitempty"`
+	TunnelIpsFilters []string `json:"tunnelIpsFilters,omitempty"`
 }
 
 func (c *XTCPProxyConfig) MarshalToMsg(m *msg.NewProxy) {

@@ -18,6 +18,7 @@ import (
 	"io"
 	"net"
 	"reflect"
+	"strings"
 	"time"
 
 	fmux "github.com/hashicorp/yamux"
@@ -69,6 +70,32 @@ func (pxy *XTCPProxy) InWorkConn(conn net.Conn, startWorkConnMsg *msg.StartWorkC
 	}
 	xl.Info("nathole prepare success, nat type: %s, behavior: %s, addresses: %v, assistedAddresses: %v",
 		prepareResult.NatType, prepareResult.Behavior, prepareResult.Addrs, prepareResult.AssistedAddrs)
+
+	var filteredAddrs []string
+	for _, addr := range prepareResult.AssistedAddrs {
+
+		// 对每个地址检查是否匹配任意一个CIDR
+		matched := false
+		for _, cidr := range pxy.cfg.TunnelIpsFilters {
+
+			_, cidrNet, _ := net.ParseCIDR(cidr)
+			addrParts := strings.Split(addr, ":")
+			addrIP := net.ParseIP(addrParts[0])
+
+			if addrIP.Mask(cidrNet.Mask).Equal(cidrNet.IP) {
+				matched = true
+				xl.Info("assistedAddresses: %v hit the filterIp: %v", addr, cidr)
+				break
+			}
+		}
+		if !matched {
+			filteredAddrs = append(filteredAddrs, addr)
+		}
+	}
+	prepareResult.AssistedAddrs = filteredAddrs
+
+	xl.Info("nathole filtered , assistedAddresses: %v", prepareResult.AssistedAddrs)
+
 	defer prepareResult.ListenConn.Close()
 
 	// send NatHoleClient msg to server
