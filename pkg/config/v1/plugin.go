@@ -15,12 +15,20 @@
 package v1
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
+
+	"github.com/samber/lo"
+
+	"github.com/fatedier/frp/pkg/util/util"
 )
 
-type ClientPluginOptions interface{}
+type ClientPluginOptions interface {
+	Complete()
+}
 
 type TypedClientPluginOptions struct {
 	Type string `json:"type"`
@@ -41,7 +49,7 @@ func (c *TypedClientPluginOptions) UnmarshalJSON(b []byte) error {
 
 	c.Type = typeStruct.Type
 	if c.Type == "" {
-		return nil
+		return errors.New("plugin type is empty")
 	}
 
 	v, ok := clientPluginOptionsTypeMap[typeStruct.Type]
@@ -49,11 +57,21 @@ func (c *TypedClientPluginOptions) UnmarshalJSON(b []byte) error {
 		return fmt.Errorf("unknown plugin type: %s", typeStruct.Type)
 	}
 	options := reflect.New(v).Interface().(ClientPluginOptions)
-	if err := json.Unmarshal(b, options); err != nil {
-		return err
+
+	decoder := json.NewDecoder(bytes.NewBuffer(b))
+	if DisallowUnknownFields {
+		decoder.DisallowUnknownFields()
+	}
+
+	if err := decoder.Decode(options); err != nil {
+		return fmt.Errorf("unmarshal ClientPluginOptions error: %v", err)
 	}
 	c.ClientPluginOptions = options
 	return nil
+}
+
+func (c *TypedClientPluginOptions) MarshalJSON() ([]byte, error) {
+	return json.Marshal(c.ClientPluginOptions)
 }
 
 const (
@@ -61,9 +79,11 @@ const (
 	PluginHTTPProxy        = "http_proxy"
 	PluginHTTPS2HTTP       = "https2http"
 	PluginHTTPS2HTTPS      = "https2https"
+	PluginHTTP2HTTP        = "http2http"
 	PluginSocks5           = "socks5"
 	PluginStaticFile       = "static_file"
 	PluginUnixDomainSocket = "unix_domain_socket"
+	PluginTLS2Raw          = "tls2raw"
 )
 
 var clientPluginOptionsTypeMap = map[string]reflect.Type{
@@ -71,50 +91,97 @@ var clientPluginOptionsTypeMap = map[string]reflect.Type{
 	PluginHTTPProxy:        reflect.TypeOf(HTTPProxyPluginOptions{}),
 	PluginHTTPS2HTTP:       reflect.TypeOf(HTTPS2HTTPPluginOptions{}),
 	PluginHTTPS2HTTPS:      reflect.TypeOf(HTTPS2HTTPSPluginOptions{}),
+	PluginHTTP2HTTP:        reflect.TypeOf(HTTP2HTTPPluginOptions{}),
 	PluginSocks5:           reflect.TypeOf(Socks5PluginOptions{}),
 	PluginStaticFile:       reflect.TypeOf(StaticFilePluginOptions{}),
 	PluginUnixDomainSocket: reflect.TypeOf(UnixDomainSocketPluginOptions{}),
+	PluginTLS2Raw:          reflect.TypeOf(TLS2RawPluginOptions{}),
 }
 
 type HTTP2HTTPSPluginOptions struct {
+	Type              string           `json:"type,omitempty"`
 	LocalAddr         string           `json:"localAddr,omitempty"`
 	HostHeaderRewrite string           `json:"hostHeaderRewrite,omitempty"`
 	RequestHeaders    HeaderOperations `json:"requestHeaders,omitempty"`
 }
 
+func (o *HTTP2HTTPSPluginOptions) Complete() {}
+
 type HTTPProxyPluginOptions struct {
+	Type         string `json:"type,omitempty"`
 	HTTPUser     string `json:"httpUser,omitempty"`
 	HTTPPassword string `json:"httpPassword,omitempty"`
 }
 
+func (o *HTTPProxyPluginOptions) Complete() {}
+
 type HTTPS2HTTPPluginOptions struct {
+	Type              string           `json:"type,omitempty"`
 	LocalAddr         string           `json:"localAddr,omitempty"`
 	HostHeaderRewrite string           `json:"hostHeaderRewrite,omitempty"`
 	RequestHeaders    HeaderOperations `json:"requestHeaders,omitempty"`
+	EnableHTTP2       *bool            `json:"enableHTTP2,omitempty"`
 	CrtPath           string           `json:"crtPath,omitempty"`
 	KeyPath           string           `json:"keyPath,omitempty"`
+}
+
+func (o *HTTPS2HTTPPluginOptions) Complete() {
+	o.EnableHTTP2 = util.EmptyOr(o.EnableHTTP2, lo.ToPtr(true))
 }
 
 type HTTPS2HTTPSPluginOptions struct {
+	Type              string           `json:"type,omitempty"`
 	LocalAddr         string           `json:"localAddr,omitempty"`
 	HostHeaderRewrite string           `json:"hostHeaderRewrite,omitempty"`
 	RequestHeaders    HeaderOperations `json:"requestHeaders,omitempty"`
+	EnableHTTP2       *bool            `json:"enableHTTP2,omitempty"`
 	CrtPath           string           `json:"crtPath,omitempty"`
 	KeyPath           string           `json:"keyPath,omitempty"`
 }
 
+func (o *HTTPS2HTTPSPluginOptions) Complete() {
+	o.EnableHTTP2 = util.EmptyOr(o.EnableHTTP2, lo.ToPtr(true))
+}
+
+type HTTP2HTTPPluginOptions struct {
+	Type              string           `json:"type,omitempty"`
+	LocalAddr         string           `json:"localAddr,omitempty"`
+	HostHeaderRewrite string           `json:"hostHeaderRewrite,omitempty"`
+	RequestHeaders    HeaderOperations `json:"requestHeaders,omitempty"`
+}
+
+func (o *HTTP2HTTPPluginOptions) Complete() {}
+
 type Socks5PluginOptions struct {
+	Type     string `json:"type,omitempty"`
 	Username string `json:"username,omitempty"`
 	Password string `json:"password,omitempty"`
 }
 
+func (o *Socks5PluginOptions) Complete() {}
+
 type StaticFilePluginOptions struct {
+	Type         string `json:"type,omitempty"`
 	LocalPath    string `json:"localPath,omitempty"`
 	StripPrefix  string `json:"stripPrefix,omitempty"`
 	HTTPUser     string `json:"httpUser,omitempty"`
 	HTTPPassword string `json:"httpPassword,omitempty"`
 }
 
+func (o *StaticFilePluginOptions) Complete() {}
+
 type UnixDomainSocketPluginOptions struct {
+	Type     string `json:"type,omitempty"`
 	UnixPath string `json:"unixPath,omitempty"`
 }
+
+func (o *UnixDomainSocketPluginOptions) Complete() {}
+
+type TLS2RawPluginOptions struct {
+	Type      string `json:"type,omitempty"`
+	LocalAddr string `json:"localAddr,omitempty"`
+	CrtPath   string `json:"crtPath,omitempty"`
+	KeyPath   string `json:"keyPath,omitempty"`
+}
+
+func (o *TLS2RawPluginOptions) Complete() {}

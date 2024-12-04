@@ -12,9 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//go:build !frps
+
 package plugin
 
 import (
+	"context"
 	"io"
 	"net"
 	"net/http"
@@ -23,7 +26,7 @@ import (
 	"github.com/gorilla/mux"
 
 	v1 "github.com/fatedier/frp/pkg/config/v1"
-	utilnet "github.com/fatedier/frp/pkg/util/net"
+	netpkg "github.com/fatedier/frp/pkg/util/net"
 )
 
 func init() {
@@ -55,10 +58,11 @@ func NewStaticFilePlugin(options v1.ClientPluginOptions) (Plugin, error) {
 	}
 
 	router := mux.NewRouter()
-	router.Use(utilnet.NewHTTPAuthMiddleware(opts.HTTPUser, opts.HTTPPassword).SetAuthFailDelay(200 * time.Millisecond).Middleware)
-	router.PathPrefix(prefix).Handler(utilnet.MakeHTTPGzipHandler(http.StripPrefix(prefix, http.FileServer(http.Dir(opts.LocalPath))))).Methods("GET")
+	router.Use(netpkg.NewHTTPAuthMiddleware(opts.HTTPUser, opts.HTTPPassword).SetAuthFailDelay(200 * time.Millisecond).Middleware)
+	router.PathPrefix(prefix).Handler(netpkg.MakeHTTPGzipHandler(http.StripPrefix(prefix, http.FileServer(http.Dir(opts.LocalPath))))).Methods("GET")
 	sp.s = &http.Server{
-		Handler: router,
+		Handler:           router,
+		ReadHeaderTimeout: 60 * time.Second,
 	}
 	go func() {
 		_ = sp.s.Serve(listener)
@@ -66,8 +70,8 @@ func NewStaticFilePlugin(options v1.ClientPluginOptions) (Plugin, error) {
 	return sp, nil
 }
 
-func (sp *StaticFilePlugin) Handle(conn io.ReadWriteCloser, realConn net.Conn, _ *ExtraInfo) {
-	wrapConn := utilnet.WrapReadWriteCloserToConn(conn, realConn)
+func (sp *StaticFilePlugin) Handle(_ context.Context, conn io.ReadWriteCloser, realConn net.Conn, _ *ExtraInfo) {
+	wrapConn := netpkg.WrapReadWriteCloserToConn(conn, realConn)
 	_ = sp.l.PutConn(wrapConn)
 }
 
